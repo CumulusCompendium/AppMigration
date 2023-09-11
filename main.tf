@@ -88,3 +88,35 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
     protocol = "-1"
   }
 }
+
+#create private subnet route table
+resource "aws_route_table" "private-rt" {
+  vpc_id = var.my-vpc-id
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.NAT-gateway.id
+  }
+  tags = {
+    Name = "private-rt"
+  }
+}
+
+#associate route table with private subnets
+resource "aws_route_table_association" "rt-ass"{
+  count = 2
+  subnet_id = data.aws_subnets.private.ids[count.index]
+  route_table_id = aws_route_table.private-rt.id
+}
+
+#nat gateway elastic ip
+resource "aws_eip" "nat-eip" {
+  domain = "vpc"
+  depends_on = [var.igw-id]
+}
+
+#nat gateway
+resource "aws_nat_gateway" "NAT-gateway" {
+  allocation_id = aws_eip.nat-eip.id
+  subnet_id = var.public-subnet-id
+  connectivity_type = "public"
+}

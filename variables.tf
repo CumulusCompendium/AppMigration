@@ -22,3 +22,18 @@ variable "bastion-host-sg" {
   description = "bastion host security group"
   default = "sg-038074cd79522a0d2"
 }
+
+variable "public-subnet-id" {
+  description = "public subnet id"
+  default = "subnet-03c14ae5b0481b727"
+}
+
+variable "my-route-table-id" {
+  description = "default route table id"
+  default = "rtb-0979817af510a87e4"
+}
+
+variable "igw-id" {
+  description = "internet gateway ID"
+  default = "igw-07d04803c9c40f77f"
+}
