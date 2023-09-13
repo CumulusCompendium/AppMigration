@@ -23,6 +23,12 @@ data "aws_subnets" "private" {
   }
   depends_on = [aws_subnet.private-subnet]
 }
+data "aws_instances" "app-hosts" {
+  instance_tags = {
+    Data = "app-hosts"
+  }
+  depends_on = [aws_instance.app-host]
+}
 
 #local variables
 locals {
@@ -54,6 +60,7 @@ resource "aws_instance" "app-host" {
   subnet_id = data.aws_subnets.private.ids[count.index]
   tags = {
     Name = "app-host-${count.index}"
+    Data = "app-hosts"
   }
 }
 
@@ -86,6 +93,7 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
     from_port = 0
     to_port = 0
     protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -119,4 +127,63 @@ resource "aws_nat_gateway" "NAT-gateway" {
   allocation_id = aws_eip.nat-eip.id
   subnet_id = var.public-subnet-id
   connectivity_type = "public"
+}
+
+resource "aws_lb" "public-elb" {
+  internal = false
+  load_balancer_type = "network"
+  subnets = [var.public-subnet-id]
+  security_groups = [aws_security_group.allow-web-elb.id]
+  enable_deletion_protection = true
+  enable_cross_zone_load_balancing = true
+  tags = {
+    Name = "public-elb"
+  }
+}
+
+#load balancer target group
+resource "aws_lb_target_group" "lb-tg" {
+  name = "lb-target-group"
+  port = "80"
+  vpc_id = var.my-vpc-id
+  health_check {
+    healthy_threshold = "3"
+    interval = "30"
+    protocol = "HTTP"
+  }
+  depends_on = [aws_lb.public-elb]
+}
+
+#target group association
+resource "aws_lb_target_group_attachment" "elb-targets" {
+  for_each = {for k, v in data.aws_instances.app-hosts: v.id => v}
+  target_group_arn = aws_lb_target_group.lb-tg.arn
+  target_id = each.value.id
+  port = 80
+  #depends_on = [aws_instance.app-host]
+}
+
+#load balancer security group
+resource "aws_security_group" "allow-web-elb" {
+  description = "Allow inbound traffic on ports 80, 443"
+  vpc_id = var.my-vpc-id
+  ingress {
+    description = "HTTPS"
+    from_port = 443
+    to_port = 443
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "HTTP"
+    from_port = 80
+    to_port = 80
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+  }
 }
