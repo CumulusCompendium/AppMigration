@@ -73,14 +73,14 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
     from_port = 443
     to_port = 443
     protocol = "tcp"
-    security_groups = []
+    security_groups = [aws_security_group.allow-web-elb.id]
   }
   ingress {
     description = "HTTP"
     from_port = 80
     to_port = 80
     protocol = "tcp"
-    security_groups = []
+    security_groups = [aws_security_group.allow-web-elb.id]
   }
   ingress {
     description = "SSH"
@@ -156,9 +156,9 @@ resource "aws_lb_target_group" "lb-tg" {
 
 #target group association
 resource "aws_lb_target_group_attachment" "elb-targets" {
-  for_each = {for k, v in data.aws_instances.app-hosts: v.id => v}
+  count = length(data.aws_instances.app-hosts)
   target_group_arn = aws_lb_target_group.lb-tg.arn
-  target_id = each.value.id
+  target_id = data.aws_instances.app-hosts.ids[count.index]
   port = 80
   #depends_on = [aws_instance.app-host]
 }
