@@ -37,3 +37,8 @@ variable "igw-id" {
   description = "internet gateway ID"
   default = "igw-07d04803c9c40f77f"
 }
+
+variable "resource-count" {
+  description = "count of subnets, instances, and lb-targets"
+  default = 2
+}

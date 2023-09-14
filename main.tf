@@ -11,6 +11,9 @@ provider "aws" {
 output "subnet_id_set" {
   value = data.aws_subnets.private.ids
 }
+output "instance_id_set" {
+  value = data.aws_instances.app-hosts.ids
+}
 
 #data sources
 data "aws_subnets" "private" {
@@ -24,8 +27,9 @@ data "aws_subnets" "private" {
   depends_on = [aws_subnet.private-subnet]
 }
 data "aws_instances" "app-hosts" {
-  instance_tags = {
-    Data = "app-hosts"
+  filter {
+    name = "tag:Data"
+    values = ["app-hosts"]
   }
   depends_on = [aws_instance.app-host]
 }
@@ -35,6 +39,16 @@ locals {
   cidrs-azs = {
     private-subnet-1 = {cidr = var.ps1c, zone = "us-east-1a"}
     private-subnet-2 = {cidr = var.ps2c, zone = "us-east-1b"}
+  }
+}
+
+# public subnet for lb
+resource "aws_subnet" "public-subnet" {
+  vpc_id = var.my-vpc-id
+  cidr_block = "172.31.3.0/24"
+  availability_zone = "us-east-1b"
+  tags = {
+    Name = "public-subnet-2"
   }
 }
 
@@ -52,7 +66,7 @@ resource "aws_subnet" "private-subnet" {
 
 # app host instances
 resource "aws_instance" "app-host" {
-  count = 2
+  count = var.resource-count
   ami = var.ah-ami
   vpc_security_group_ids = [aws_security_group.allow-elb-bastion-apphost.id]
   instance_type = "t2.micro"
@@ -111,7 +125,7 @@ resource "aws_route_table" "private-rt" {
 
 #associate route table with private subnets
 resource "aws_route_table_association" "rt-ass"{
-  count = 2
+  count = var.resource-count
   subnet_id = data.aws_subnets.private.ids[count.index]
   route_table_id = aws_route_table.private-rt.id
 }
@@ -131,10 +145,9 @@ resource "aws_nat_gateway" "NAT-gateway" {
 
 resource "aws_lb" "public-elb" {
   internal = false
-  load_balancer_type = "network"
-  subnets = [var.public-subnet-id]
+  load_balancer_type = "application"
+  subnets = [var.public-subnet-id, aws_subnet.public-subnet.id]
   security_groups = [aws_security_group.allow-web-elb.id]
-  enable_deletion_protection = true
   enable_cross_zone_load_balancing = true
   tags = {
     Name = "public-elb"
@@ -145,6 +158,7 @@ resource "aws_lb" "public-elb" {
 resource "aws_lb_target_group" "lb-tg" {
   name = "lb-target-group"
   port = "80"
+  protocol = "HTTP"
   vpc_id = var.my-vpc-id
   health_check {
     healthy_threshold = "3"
@@ -156,11 +170,22 @@ resource "aws_lb_target_group" "lb-tg" {
 
 #target group association
 resource "aws_lb_target_group_attachment" "elb-targets" {
-  count = length(data.aws_instances.app-hosts)
+  count = var.resource-count
   target_group_arn = aws_lb_target_group.lb-tg.arn
   target_id = data.aws_instances.app-hosts.ids[count.index]
   port = 80
-  #depends_on = [aws_instance.app-host]
+  depends_on = [aws_instance.app-host]
+}
+
+#target group listener to lb
+resource "aws_lb_listener" "lb-listener" {
+  load_balancer_arn = aws_lb.public-elb.arn
+  port = "80"
+  protocol = "HTTP"
+  default_action {
+    type = "forward"
+    target_group_arn = aws_lb_target_group.lb-tg.arn
+  } 
 }
 
 #load balancer security group
