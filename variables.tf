@@ -42,3 +42,8 @@ variable "resource-count" {
   description = "count of subnets, instances, and lb-targets"
   default = 2
 }
+
+variable "hosted-zone-id" {
+  description = "id of the cc.click hosted zone"
+  default = "Z03705381UCRXDJAMTRUD"
+}

@@ -7,7 +7,7 @@ provider "aws" {
   }
 }
 
-#outputs
+#--------------------------------------------------------------------------- outputs
 output "subnet_id_set" {
   value = data.aws_subnets.private.ids
 }
@@ -15,7 +15,7 @@ output "instance_id_set" {
   value = data.aws_instances.app-hosts.ids
 }
 
-#data sources
+#--------------------------------------------------------------------------- data sources
 data "aws_subnets" "private" {
   filter {
     name = "vpc-id"   
@@ -34,7 +34,7 @@ data "aws_instances" "app-hosts" {
   depends_on = [aws_instance.app-host]
 }
 
-#local variables
+#--------------------------------------------------------------------------- local variables
 locals {
   cidrs-azs = {
     private-subnet-1 = {cidr = var.ps1c, zone = "us-east-1a"}
@@ -42,7 +42,8 @@ locals {
   }
 }
 
-# public subnet for lb
+
+#---------------------------------------------------------------------------- public subnet for lb
 resource "aws_subnet" "public-subnet" {
   vpc_id = var.my-vpc-id
   cidr_block = "172.31.3.0/24"
@@ -52,7 +53,7 @@ resource "aws_subnet" "public-subnet" {
   }
 }
 
-# private subnets
+#---------------------------------------------------------------------------- private subnets
 resource "aws_subnet" "private-subnet" {
   vpc_id = var.my-vpc-id
   for_each = local.cidrs-azs
@@ -64,7 +65,7 @@ resource "aws_subnet" "private-subnet" {
   }
 }
 
-# app host instances
+#------------------------------------------------------------------------------ app host instances
 resource "aws_instance" "app-host" {
   count = var.resource-count
   ami = var.ah-ami
@@ -78,7 +79,7 @@ resource "aws_instance" "app-host" {
   }
 }
 
-#app host security group
+#---------------------------------------------------------------------------- app host security group
 resource "aws_security_group" "allow-elb-bastion-apphost" {
   description = "Allow SSH 22 from bastion and 80/443 from ELB"
   vpc_id = var.my-vpc-id
@@ -111,7 +112,7 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
   }
 }
 
-#create private subnet route table
+#---------------------------------------------------------------------------- create private subnet route table
 resource "aws_route_table" "private-rt" {
   vpc_id = var.my-vpc-id
   route {
@@ -123,38 +124,39 @@ resource "aws_route_table" "private-rt" {
   }
 }
 
-#associate route table with private subnets
+#---------------------------------------------------------------------------- associate route table with private subnets
 resource "aws_route_table_association" "rt-ass"{
   count = var.resource-count
   subnet_id = data.aws_subnets.private.ids[count.index]
   route_table_id = aws_route_table.private-rt.id
 }
 
-#nat gateway elastic ip
+#---------------------------------------------------------------------------- nat gateway elastic ip
 resource "aws_eip" "nat-eip" {
   domain = "vpc"
   depends_on = [var.igw-id]
 }
 
-#nat gateway
+#---------------------------------------------------------------------------- nat gateway
 resource "aws_nat_gateway" "NAT-gateway" {
   allocation_id = aws_eip.nat-eip.id
   subnet_id = var.public-subnet-id
   connectivity_type = "public"
 }
 
+#---------------------------------------------------------------------------- create load balancer
 resource "aws_lb" "public-elb" {
   internal = false
   load_balancer_type = "application"
-  subnets = [var.public-subnet-id, aws_subnet.public-subnet.id]
   security_groups = [aws_security_group.allow-web-elb.id]
   enable_cross_zone_load_balancing = true
+  subnets = [var.public-subnet-id, aws_subnet.public-subnet.id]
   tags = {
     Name = "public-elb"
   }
 }
 
-#load balancer target group
+#--------------------------------------------------------------------------- load balancer target group
 resource "aws_lb_target_group" "lb-tg" {
   name = "lb-target-group"
   port = "80"
@@ -168,7 +170,7 @@ resource "aws_lb_target_group" "lb-tg" {
   depends_on = [aws_lb.public-elb]
 }
 
-#target group association
+#--------------------------------------------------------------------------- target group association
 resource "aws_lb_target_group_attachment" "elb-targets" {
   count = var.resource-count
   target_group_arn = aws_lb_target_group.lb-tg.arn
@@ -177,7 +179,7 @@ resource "aws_lb_target_group_attachment" "elb-targets" {
   depends_on = [aws_instance.app-host]
 }
 
-#target group listener to lb
+#--------------------------------------------------------------------------- target group listener to lb
 resource "aws_lb_listener" "lb-listener" {
   load_balancer_arn = aws_lb.public-elb.arn
   port = "80"
@@ -188,7 +190,7 @@ resource "aws_lb_listener" "lb-listener" {
   } 
 }
 
-#load balancer security group
+#-------------------------------------------------------------------------- load balancer security group
 resource "aws_security_group" "allow-web-elb" {
   description = "Allow inbound traffic on ports 80, 443"
   vpc_id = var.my-vpc-id
@@ -210,5 +212,17 @@ resource "aws_security_group" "allow-web-elb" {
     from_port = 0
     to_port = 0
     protocol = "-1"
+  }
+}
+
+#-------------------------------------------------------------------------- route53 record to load balancer
+resource "aws_route53_record" "app" {
+  zone_id = var.hosted-zone-id
+  name = "app.cumuluscompendium.click"
+  type = "A"
+  alias {
+    name = aws_lb.public-elb.dns_name
+    zone_id = aws_lb.public-elb.zone_id
+    evaluate_target_health = true
   }
 }
