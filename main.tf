@@ -212,6 +212,7 @@ resource "aws_security_group" "allow-web-elb" {
     from_port = 0
     to_port = 0
     protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -225,4 +226,44 @@ resource "aws_route53_record" "app" {
     zone_id = aws_lb.public-elb.zone_id
     evaluate_target_health = true
   }
+}
+
+#-------------------------------------------------------------------------- create db subnet group
+resource "aws_db_subnet_group" "subnet-group" {
+  name       = "main"
+  subnet_ids = [data.aws_subnets.private.ids]
+
+  tags = {
+    Name = "private-subnet-group"
+  }
+}
+
+#-------------------------------------------------------------------------- create sg for db
+resource "aws_security_group" "allow-apphost-db" {
+  description = "Allow inbound traffic from app-hosts on port 3306"
+  vpc_id = var.my-vpc-id
+  ingress {
+    description = "MySQL"
+    from_port = 3306
+    to_port = 3306
+    protocol = "tcp"
+    security_groups = [aws_security_groups.allow-elb-bastion-apphosts.id]
+  }
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+#--------------------------------------------------------------------------- create MySQL RDS DB
+resource "aws_db_instance" "app-db" {
+  allocated_storage           = 10
+  db_name                     = "app-db"
+  engine                      = "mysql"
+  engine_version              = "5.7"
+  instance_class              = "db.t3.micro"
+  username                    = "admin"
+  manage_master_user_password = true
 }
