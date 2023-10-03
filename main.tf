@@ -81,7 +81,7 @@ resource "aws_instance" "app-host" {
 
 #---------------------------------------------------------------------------- app host security group
 resource "aws_security_group" "allow-elb-bastion-apphost" {
-  description           = "Allow SSH 22 from bastion and 80/443 from ELB"
+  description           = "Allow SSH 22 from bastion and 80/443/8080 from ELB"
   vpc_id                = var.my-vpc-id
   ingress {
     description         = "HTTPS"
@@ -94,6 +94,13 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
     description         = "HTTP"
     from_port           = 80
     to_port             = 80
+    protocol            = "tcp"
+    security_groups     = [aws_security_group.allow-web-elb.id]
+  }
+  ingress {
+    description         = "HTTP APP"
+    from_port           = 8080
+    to_port             = 8080
     protocol            = "tcp"
     security_groups     = [aws_security_group.allow-web-elb.id]
   }
@@ -159,12 +166,13 @@ resource "aws_lb" "public-elb" {
 #--------------------------------------------------------------------------- load balancer target group
 resource "aws_lb_target_group" "lb-tg" {
   name                    = "lb-target-group"
-  port                    = "80"
+  port                    = "8080"
   protocol                = "HTTP"
   vpc_id                  = var.my-vpc-id
   health_check {
     healthy_threshold     = "3"
     interval              = "30"
+    port                  = "8080"
     protocol              = "HTTP"
   }
   depends_on              = [aws_lb.public-elb]
@@ -175,7 +183,7 @@ resource "aws_lb_target_group_attachment" "elb-targets" {
   count                   = var.resource-count
   target_group_arn        = aws_lb_target_group.lb-tg.arn
   target_id               = data.aws_instances.app-hosts.ids[count.index]
-  port                    = 80
+  port                    = 8080
   depends_on              = [aws_instance.app-host]
 }
 
