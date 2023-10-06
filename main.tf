@@ -14,6 +14,15 @@ output "subnet_id_set" {
 output "instance_id_set" {
   value = data.aws_instances.app-hosts.ids
 }
+output "instance_private_ip" {
+  value = data.aws_instances.app-hosts.private_ips
+}
+output "secret" {
+  value = aws_db_instance.app-db.master_user_secret[0].secret_arn
+}
+output "db_arn" {
+  value = aws_db_instance.app-db.arn
+}
 
 #--------------------------------------------------------------------------- data sources
 data "aws_subnets" "private" {
@@ -33,6 +42,11 @@ data "aws_instances" "app-hosts" {
   }
   depends_on          = [aws_instance.app-host]
 }
+
+#--------------------------------------------------------------------------- data sources ansible
+#data "template_file" "inventory" {
+#  template = file("${path.module}/inventory.tpl")
+#}
 
 #--------------------------------------------------------------------------- local variables
 locals {
@@ -94,6 +108,13 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
     description         = "HTTP"
     from_port           = 80
     to_port             = 80
+    protocol            = "tcp"
+    security_groups     = [aws_security_group.allow-web-elb.id]
+  }
+  ingress{
+    description         = "HTTP APP"
+    from_port           = 8080
+    to_port             = 8080
     protocol            = "tcp"
     security_groups     = [aws_security_group.allow-web-elb.id]
   }
@@ -170,7 +191,7 @@ resource "aws_lb_target_group" "lb-tg" {
   protocol                = "HTTP"
   vpc_id                  = var.my-vpc-id
   health_check {
-    healthy_threshold     = "3"
+    healthy_threshold     = "2"
     interval              = "30"
     port                  = "8080"
     protocol              = "HTTP"

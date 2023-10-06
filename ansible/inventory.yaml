@@ -1,0 +1,5 @@
+---
+apphosts:
+  hosts:
+    app_host_0:
+      ansible_host: 172.31.1.78

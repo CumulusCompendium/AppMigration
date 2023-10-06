@@ -1,0 +1,30 @@
+---
+- name: Playbook
+  hosts: apphosts
+  tasks:
+    - name: install java-17-amazon-corretto and mysql
+      become: yes
+      yum:
+        name: "{{ packages }}"
+        state: installed
+      vars:
+        packages:
+        - java-17-amazon-corretto
+        - mysql
+
+    - name: copy app and user.sql
+      copy:
+        src: ~/git-files/spring-petclinic/target/app
+        dest: ~/
+
+    - name: log in to mysql server
+      shell: mysql -h {{ host }} -u admin --password='{{ passwd }}' < /home/ec2-user/app/user.sql
+      vars:
+        host: terraform-20231006124509922600000008.cikfo360ndcs.us-east-1.rds.amazonaws.com
+        passwd: L&$c>h2-s|osFmY5$F1eO2Suzt~0
+
+    - name: create MYSQL_URL en, start app
+      shell: nohup java -jar /home/ec2-user/app/spring-petclinic-3.1.0-SNAPSHOT.jar --spring.profiles.active=mysql &
+      environment:
+        MYSQL_URL: jdbc:mysql://terraform-20231006124509922600000008.cikfo360ndcs.us-east-1.rds.amazonaws.com:3306/petclinic
+
