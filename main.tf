@@ -20,8 +20,8 @@ output "instance_private_ip" {
 output "secret" {
   value = aws_db_instance.app-db.master_user_secret[0].secret_arn
 }
-output "db_arn" {
-  value = aws_db_instance.app-db.arn
+output "db_endpoint" {
+  value = local.dbendpoint
 }
 
 #--------------------------------------------------------------------------- data sources
@@ -43,19 +43,35 @@ data "aws_instances" "app-hosts" {
   depends_on          = [aws_instance.app-host]
 }
 
-#--------------------------------------------------------------------------- data sources ansible
-#data "template_file" "inventory" {
-#  template = file("${path.module}/inventory.tpl")
-#}
+#--------------------------------------------------------------------------- return db secret obj, then latest secret
+data "aws_secretsmanager_secret" "secret-obj" {
+  arn                 = aws_db_instance.app-db.master_user_secret[0].secret_arn
+  depends_on          = [aws_db_instance.app-db]
+}
+
+data "aws_secretsmanager_secret_version" "latest-secret" {
+  secret_id           = data.aws_secretsmanager_secret.secret-obj.id
+  depends_on          = [aws_db_instance.app-db]
+}
+
+#--------------------------------------------------------------------------- inventory to ansible, includes app-host IPs, DB endpoint, and DB secret
+resource "local_file" "inventory" {
+  content = templatefile("${path.module}/inventory.tftpl", {
+    private_ips = data.aws_instances.app-hosts.private_ips,
+    db_endpoint = local.dbendpoint,
+    db_secret = local.dbsecret})
+  filename = "/home/ec2-user/ansible/inventory.tpl"
+}
 
 #--------------------------------------------------------------------------- local variables
 locals {
   cidrs-azs = {
-    private-subnet-1 = {cidr = var.ps1c, zone = "us-east-1a"}
-    private-subnet-2 = {cidr = var.ps2c, zone = "us-east-1b"}
+    private-subnet-1    = {cidr = var.ps1c, zone = "us-east-1a"}
+    private-subnet-2    = {cidr = var.ps2c, zone = "us-east-1b"}
   }
+  dbsecret              = jsondecode(nonsensitive(data.aws_secretsmanager_secret_version.latest-secret.secret_string))["password"]
+  dbendpoint            = split(":", aws_db_instance.app-db.endpoint)[0]
 }
-
 
 #---------------------------------------------------------------------------- public subnet for lb
 resource "aws_subnet" "public-subnet" {
@@ -112,13 +128,6 @@ resource "aws_security_group" "allow-elb-bastion-apphost" {
     security_groups     = [aws_security_group.allow-web-elb.id]
   }
   ingress{
-    description         = "HTTP APP"
-    from_port           = 8080
-    to_port             = 8080
-    protocol            = "tcp"
-    security_groups     = [aws_security_group.allow-web-elb.id]
-  }
-  ingress {
     description         = "HTTP APP"
     from_port           = 8080
     to_port             = 8080

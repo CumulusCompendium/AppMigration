@@ -16,15 +16,18 @@
       copy:
         src: ~/git-files/spring-petclinic/target/app
         dest: ~/
+    
+    - name: test
+      debug:
+        var: dbendpoint
+    - debug:
+        var: dbsecret
 
     - name: log in to mysql server
-      shell: mysql -h {{ host }} -u admin --password='{{ passwd }}' < /home/ec2-user/app/user.sql
-      vars:
-        host: terraform-20231006124509922600000008.cikfo360ndcs.us-east-1.rds.amazonaws.com
-        passwd: L&$c>h2-s|osFmY5$F1eO2Suzt~0
+      shell: mysql -h {{ dbendpoint }} -u admin --password='{{ dbsecret }}' < /home/ec2-user/app/user.sql
 
     - name: create MYSQL_URL en, start app
-      shell: nohup java -jar /home/ec2-user/app/spring-petclinic-3.1.0-SNAPSHOT.jar --spring.profiles.active=mysql &
+      shell: nohup java -jar /home/ec2-user/app/spring-petclinic-3.1.0-SNAPSHOT.jar --spring.profiles.active=mysql  > /dev/null 2>&1 &
       environment:
-        MYSQL_URL: jdbc:mysql://terraform-20231006124509922600000008.cikfo360ndcs.us-east-1.rds.amazonaws.com:3306/petclinic
+        MYSQL_URL: "jdbc:mysql://{{ dbendpoint }}:3306/petclinic"
 

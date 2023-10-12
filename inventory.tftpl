@@ -1,0 +1,7 @@
+[apphosts]
+%{ for ip in private_ips ~}
+${ip}
+%{endfor ~}
+[apphosts:vars]
+dbendpoint=${db_endpoint}
+dbsecret=${db_secret}
