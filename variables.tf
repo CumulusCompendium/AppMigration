@@ -1,11 +1,11 @@
 variable "my-vpc-id" {
   description = "VPC ID"
-  default = "vpc-07989cc04f4966ee5"
+  default     = "vpc-07989cc04f4966ee5"
 }
 
 variable "ps1c" {
   description = "private subnet 1 cidr"
-  default = "172.31.1.0/24"
+  default     = "172.31.1.0/24"
 }
 
 variable "ps2c" {
@@ -36,4 +36,14 @@ variable "my-route-table-id" {
 variable "igw-id" {
   description = "internet gateway ID"
   default = "igw-07d04803c9c40f77f"
+}
+
+variable "resource-count" {
+  description = "count of subnets, instances, and lb-targets"
+  default = 2
+}
+
+variable "hosted-zone-id" {
+  description = "id of the cc.click hosted zone"
+  default = "Z03705381UCRXDJAMTRUD"
 }

@@ -1,0 +1,65 @@
+---
+- name: Initial
+  hosts: localhost
+  tasks:
+    - name: clone app from git
+      git:
+        repo: 'https://github.com/spring-projects/spring-petclinic.git'
+        dest: ~/git-files/ansible-petclinic
+        clone: yes
+        force: true
+
+    - name: create jar
+      command: ./mvnw package
+      args:
+        chdir: ~/git-files/ansible-petclinic
+
+    - name: create app directory in /target
+      file:
+        path: ~/git-files/ansible-petclinic/target/app
+        state: directory
+        mode: '0755'
+
+    - name: copy user.sql to /target/app
+      copy:
+        src: ~/git-files/ansible-petclinic/user.sql
+        dest: ~/git-files/ansible-petclinic/target/app
+
+    - name: copy snapshot to app directory
+      copy:
+        src: ~/git-files/ansible-petclinic/target/spring-petclinic-3.1.0-SNAPSHOT.jar
+        dest: ~/git-files/ansible-petclinic/target/app
+
+
+- name: Playbook
+  hosts: apphosts
+  tasks:
+    - name: install java-17-amazon-corretto and mysql
+      become: yes
+      yum:
+        name: "{{ packages }}"
+        state: installed
+      vars:
+        packages:
+        - java-17-amazon-corretto
+        - mysql
+
+    - name: copy app and user.sql
+      copy:
+        src: ~/git-files/ansible-petclinic/target/app
+        dest: ~/
+    
+    - name: test
+      debug:
+        var: dbendpoint
+    - debug:
+        var: dbsecret
+
+    - name: log in to mysql server
+      shell: mysql -h {{ dbendpoint }} -u admin --password='{{ dbsecret }}' < /home/ec2-user/app/user.sql
+
+    - name: create MYSQL_URL en, start app
+      shell: nohup java -jar /home/ec2-user/app/spring-petclinic-3.1.0-SNAPSHOT.jar --spring.profiles.active=mysql  > /dev/null 2>&1 &
+      environment:
+        MYSQL_URL: "jdbc:mysql://{{ dbendpoint }}:3306/petclinic"
+
