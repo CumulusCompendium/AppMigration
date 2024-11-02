@@ -45,5 +45,5 @@ variable "resource-count" {
 
 variable "hosted-zone-id" {
   description = "id of the cc.click hosted zone"
-  default = "Z03705381UCRXDJAMTRUD"
+  default = "Z0069770354UXJ0FW5U17"
 }

@@ -162,7 +162,7 @@ resource "aws_route_table" "private-rt" {
 }
 
 #---------------------------------------------------------------------------- associate route table with private subnets
-resource "aws_route_table_association" "rt-ass"{
+resource "aws_route_table_association" "rt-ass" {
   count                  = var.resource-count
   subnet_id              = data.aws_subnets.private.ids[count.index]
   route_table_id         = aws_route_table.private-rt.id
