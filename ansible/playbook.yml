@@ -10,9 +10,14 @@
         force: true
 
     - name: create jar
-      command: ./mvnw package
+      shell: "./mvnw -B package > build.log 2>&1"
       args:
         chdir: ~/git-files/ansible-petclinic
+      timeout: 500
+      register: build_result
+
+    - debug:
+        var: build_result.stdout_lines
 
     - name: create app directory in /target
       file:
@@ -22,13 +27,21 @@
 
     - name: copy user.sql to /target/app
       copy:
-        src: ~/git-files/ansible-petclinic/user.sql
+        src: ~/git-files/ansible-petclinic/src/main/resources/db/mysql/user.sql
         dest: ~/git-files/ansible-petclinic/target/app
+    
+    - name: find snapshot jar
+      find:
+        paths: ~/git-files/ansible-petclinic/target
+        patterns: "*SNAPSHOT.jar"
+      register: found_files
 
     - name: copy snapshot to app directory
       copy:
-        src: ~/git-files/ansible-petclinic/target/spring-petclinic-3.1.0-SNAPSHOT.jar
+        src: "{{ item.path }}"
         dest: ~/git-files/ansible-petclinic/target/app
+      with_items: "{{ found_files.files }}"
+      when: found_files.matched > 0
 
 
 - name: Playbook
