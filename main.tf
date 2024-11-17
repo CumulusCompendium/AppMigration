@@ -60,7 +60,7 @@ resource "local_file" "inventory" {
     private_ips = data.aws_instances.app-hosts.private_ips,
     db_endpoint = local.dbendpoint,
     db_secret = local.dbsecret})
-  filename = "/home/ec2-user/ansible/inventory.tpl"
+  filename = "/home/ec2-user/git-files/AppMigration/ansible/inventory.tpl"
 }
 
 #--------------------------------------------------------------------------- local variables
